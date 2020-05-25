@@ -83,7 +83,8 @@ ui <- dashboardPage(
     dashboardSidebar(
         sidebarMenu(
             menuItem("Casos", tabName = "cases", icon = icon("diagnoses")),
-            menuItem("Óbitos", tabName = "deaths", icon = icon("procedures"))
+            menuItem("Óbitos", tabName = "deaths", icon = icon("procedures")),
+            menuItem("Transmissão", tabName = "transmission", icon = icon("procedures"))
         )
     ),
     dashboardBody(tabItems(
@@ -109,6 +110,15 @@ ui <- dashboardPage(
                 fluidRow(
                     box(shiny::plotOutput("deaths_plot_day_pct")),
                     box(shiny::plotOutput("deaths_plot_week_pct"))
+                ),
+                fluidRow(
+                    box(shiny::plotOutput("deaths_plot_total")),
+                    box(shiny::plotOutput("deaths_plot_total_week"))
+                )
+        ),
+        tabItem(tabName = "transmission", 
+                fluidRow(
+                    box(shiny::plotOutput("rt")),
                 )
         )
     ))
@@ -213,6 +223,54 @@ server <- function(input, output) {
                 subtitle = "Quantos óbitos a mais foram reportados que no dia anterior. Abaixo de 0% indica que a taxa de novos óbitos está diminuindo."
             ) + 
             geom_smooth(aes(date, pct_change), color="yellow4", fill="yellow4", alpha=0.3)
+    })
+    
+    output$deaths_plot_total <- shiny::renderPlot({
+        data %>% ggplot() + geom_line(aes(date, deaths, color="Total acumulado"), size=1.5) + 
+            geom_col(aes(date, new_deaths, fill="Novos óbitos"), alpha=0.5) + theme_minimal() + 
+            labs(y="", x="Data", title = "Total de óbitos reportados", subtitle = "Eixo vertical em escala linear.") + 
+            scale_color_manual(values=c("Total acumulado" = "yellow4"), name = "") + 
+            scale_fill_manual(values=c("Novos óbitos" = "yellow4"), name = "")
+    })
+    
+    output$deaths_plot_total_week <- shiny::renderPlot({
+        data %>% group_by(epi_week) %>% summarise(new_deaths = sum(new_deaths)) %>% mutate(total_deaths = cumsum(new_deaths)) %>% ggplot() + 
+            geom_col(aes(epi_week, new_deaths, fill = "Novos óbitos"), alpha=0.5) + 
+            geom_line(aes(epi_week, total_deaths, color="Total óbitos")) + theme_minimal() +
+            labs(x="Semana epidemiológica", y="Novos óbitos", title = "óbitos por semana epidemiológica", y ="", subtitle = "Eixo vertical em escala linear.") + 
+            scale_fill_manual(values=c("Novos óbitos" = "yellow4"), name = "") + scale_color_manual(values=c("Total óbitos" = "yellow4"), name="")
+    })
+    
+    est <- rec %>% 
+        smooth_new_cases() %>% 
+        compute_likelihood() %>% 
+        compute_posterior() %>% 
+        estimate_rt()
+    
+    current_rt <- tail(est, 1)$r_t_most_likely
+    
+    output$rt <- shiny::renderPlot({
+        est %>%
+            ggplot(aes(x = date, y = r_t_most_likely)) +
+            geom_point(color = "darkorange", alpha = 0.8, size = 4) +
+            geom_line() +
+            geom_hline(yintercept = 1, linetype = 'dashed') +
+            geom_ribbon(
+                aes(ymin = pmin(r_t_lo, 1), ymax = 1),
+                fill = 'green4',
+                alpha = 0.2
+            ) +
+            geom_ribbon(
+                aes(ymin = 1, ymax = pmax(1, r_t_hi)),
+                fill = 'red4',
+                alpha = 0.2
+            ) +
+            labs(
+                title = expression('Recife COVID19 Real time R'[t]),
+                x = "Data",
+                y = expression("R"[t]),
+                subtitle = paste("Current expected Rt:", current_rt)
+            ) + theme_minimal()
     })
 }
 
