@@ -84,7 +84,7 @@ ui <- dashboardPage(
         sidebarMenu(
             menuItem("Casos", tabName = "cases", icon = icon("diagnoses")),
             menuItem("Óbitos", tabName = "deaths", icon = icon("procedures")),
-            menuItem("Transmissão", tabName = "transmission", icon = icon("procedures"))
+            menuItem("Transmissão", tabName = "transmission", icon = icon("viruses"))
         )
     ),
     dashboardBody(tabItems(
